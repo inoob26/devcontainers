@@ -1,0 +1,27 @@
+# Claude Code skills installed into the container on every start by
+# `install-skills.sh`. One GitHub URL per line, pointing at a folder that
+# contains SKILL.md:
+#
+#   https://github.com/<owner>/<repo>/tree/<ref>/<path/to/skill>
+#   https://github.com/<owner>/<repo>            # SKILL.md at the repo root
+#
+# <ref> is a branch, tag or commit SHA -- use a tag or SHA to pin a version.
+# The skill is installed under the folder's name. Blank lines and `#` comments
+# are ignored. Remove a line and the skill is removed on the next start.
+
+# jeffallan/claude-skills (MIT)
+https://github.com/jeffallan/claude-skills/tree/main/skills/architecture-designer
+https://github.com/jeffallan/claude-skills/tree/main/skills/devops-engineer
+https://github.com/jeffallan/claude-skills/tree/main/skills/django-expert
+https://github.com/jeffallan/claude-skills/tree/main/skills/fastapi-expert
+https://github.com/jeffallan/claude-skills/tree/main/skills/fullstack-guardian
+https://github.com/jeffallan/claude-skills/tree/main/skills/golang-pro
+https://github.com/jeffallan/claude-skills/tree/main/skills/kubernetes-specialist
+https://github.com/jeffallan/claude-skills/tree/main/skills/monitoring-expert
+https://github.com/jeffallan/claude-skills/tree/main/skills/secure-code-guardian
+https://github.com/jeffallan/claude-skills/tree/main/skills/security-reviewer
+https://github.com/jeffallan/claude-skills/tree/main/skills/sre-engineer
+https://github.com/jeffallan/claude-skills/tree/main/skills/test-master
+
+# softaworks/agent-toolkit (MIT)
+https://github.com/softaworks/agent-toolkit/tree/main/skills/database-schema-designer
