@@ -1,0 +1,108 @@
+{
+  // Python + uv + Claude Code dev container. Copy the `.devcontainer/` folder
+  // into the root of your project and "Reopen in Container".
+  "name": "claude-python",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // The project is mounted at the same absolute path as on the host instead of
+  // `/workspaces/<name>`. Absolute paths end up in files shared by host and
+  // container (`.claude/settings.local.json`, `gitdir:` of git worktrees,
+  // `INSTALL_PYTHON` in pre-commit hooks); with different paths each side would
+  // break them for the other. It also avoids spaces in `/workspaces/...`.
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "features": {
+    // Claude Code is installed via npm. Node is declared explicitly, otherwise
+    // the feature pulls in an old, unsupported Node.
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    // Pin a concrete version (e.g. "2.1.280") for reproducible builds.
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {
+      "version": "latest"
+    },
+    // Own Docker daemon inside the container instead of the host socket:
+    //   - the host socket is root on the host, while Claude Code here may run
+    //     with `--dangerously-skip-permissions`;
+    //   - bind mounts from `docker compose` are resolved by the inner daemon,
+    //     which sees the same paths as the container;
+    //   - published ports land on the container's localhost and don't clash
+    //     with the host.
+    // Remove this feature if the project doesn't need Docker.
+    // `moby: false` -- there are no moby packages for trixie, docker-ce is used.
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  // Claude Code refuses `--dangerously-skip-permissions` as root.
+  "remoteUser": "vscode",
+  "mounts": [
+    // A host `.venv` is built for the host interpreter and is broken inside.
+    // The volume shadows it: `.venv/bin/...` keeps working in the container and
+    // the host venv stays untouched.
+    "source=claude-python-venv-${devcontainerId},target=${containerWorkspaceFolder}/.venv,type=volume",
+    // Claude login, settings and history survive container rebuilds. The
+    // volume is private: state is not shared with the host.
+    "source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    // Shared across all containers built from this template.
+    "source=claude-python-uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    // Your personal Claude Code skills, agents and commands from the host.
+    // `claude-host-export.sh` collects them, they arrive read-only and
+    // `claude-host-import.sh` copies them into `~/.claude`. Why not mount
+    // `~/.claude` directly -- see the scripts.
+    "source=${localWorkspaceFolder}/.devcontainer/.claude-host,target=/opt/claude-host,type=bind,readonly",
+    // Host ssh-agent for `git push` / `git+ssh` dependencies. Requires
+    // SSH_AUTH_SOCK to be set on the host; remove this entry (and
+    // `SSH_AUTH_SOCK` below) if you don't use an ssh-agent.
+    {
+      "source": "${localEnv:SSH_AUTH_SOCK}",
+      "target": "/ssh-agent",
+      "type": "bind"
+    }
+  ],
+  // Lets the container reach the host by name. Network stays bridge, not host:
+  // services listening on the host's localhost are not reachable.
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "containerEnv": {
+    // `~/.claude.json` (OAuth account, project trust) lives outside
+    // `~/.claude`; this puts it into the volume as well.
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "remoteEnv": {
+    // Optional proxy. Set `DEVCONTAINER_HTTPS_PROXY=http://host.docker.internal:<port>`
+    // on the host (the proxy must listen on the docker bridge address, not only
+    // 127.0.0.1); when unset the variables are empty and have no effect.
+    // `remoteEnv`, not `containerEnv`: the latter is baked in at creation time.
+    // SOCKS/`ALL_PROXY` is intentionally not forwarded: `httpx` fails on import
+    // with it. The inner dockerd doesn't see these variables.
+    "HTTPS_PROXY": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
+    "https_proxy": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
+    "HTTP_PROXY": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
+    "http_proxy": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
+    "NO_PROXY": "localhost,127.0.0.1,::1,host.docker.internal",
+    "no_proxy": "localhost,127.0.0.1,::1,host.docker.internal",
+    "SSH_AUTH_SOCK": "/ssh-agent"
+  },
+  // Runs on the host before every start: the `.claude-host` mount needs it.
+  // An array, not a string, so paths with spaces work.
+  "initializeCommand": ["bash", ".devcontainer/claude-host-export.sh"],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // On every start, not once: the skill list and host skills change more often
+  // than the container is rebuilt. Skills from `skills-list.txt` go first, so
+  // your host copies win on a name clash.
+  "postStartCommand": "bash .devcontainer/install-skills.sh; bash .devcontainer/claude-host-import.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
+      }
+    }
+  }
+}
