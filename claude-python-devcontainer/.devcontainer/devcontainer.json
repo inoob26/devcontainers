@@ -85,9 +85,15 @@
     "no_proxy": "localhost,127.0.0.1,::1,host.docker.internal",
     "SSH_AUTH_SOCK": "/ssh-agent"
   },
-  // Runs on the host before every start: the `.claude-host` mount needs it.
-  // An array, not a string, so paths with spaces work.
-  "initializeCommand": ["bash", ".devcontainer/claude-host-export.sh"],
+  // Runs on the host before every start. Arrays, not strings, so paths with
+  // spaces work.
+  "initializeCommand": {
+    // The `.claude-host` mount needs it.
+    "claude-host": ["bash", ".devcontainer/claude-host-export.sh"],
+    // The `.venv` volume needs a mount point. Missing, Docker creates it on the
+    // host as root, and a host-side `uv sync` then fails with permission denied.
+    "venv": ["mkdir", "-p", ".venv"]
+  },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   // On every start, not once: the skill list and host skills change more often
   // than the container is rebuilt. Skills from `skills-list.txt` go first, so
