@@ -1,0 +1,35 @@
+# Domains the container may reach, one per line. GitHub (github.com, its API
+# and git) is always allowed via https://api.github.com/meta. Baked into the
+# image: rebuild the container after editing.
+
+# Claude Code: API, login, telemetry, updates
+api.anthropic.com
+console.anthropic.com
+statsig.anthropic.com
+claude.ai
+claude.com
+platform.claude.com
+downloads.claude.ai
+sentry.io
+registry.npmjs.org
+
+# Python packages
+pypi.org
+files.pythonhosted.org
+
+# GitHub content outside the published ranges
+raw.githubusercontent.com
+objects.githubusercontent.com
+codeload.github.com
+
+# Docker Hub and ghcr.io for the inner Docker daemon
+registry-1.docker.io
+auth.docker.io
+production.cloudflare.docker.com
+ghcr.io
+pkg-containers.githubusercontent.com
+
+# VS Code server and extensions
+update.code.visualstudio.com
+marketplace.visualstudio.com
+vscode.blob.core.windows.net

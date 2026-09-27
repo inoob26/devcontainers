@@ -36,7 +36,10 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Claude Code refuses `--dangerously-skip-permissions` as root.
+  // The container starts as root: docker-in-docker's entrypoint starts dockerd
+  // and `vscode` has no general sudo. Everything you and Claude run is
+  // `vscode`: Claude Code refuses `--dangerously-skip-permissions` as root.
+  "containerUser": "root",
   "remoteUser": "vscode",
   "mounts": [
     // A host `.venv` is built for the host interpreter and is broken inside.
@@ -48,23 +51,30 @@
     "source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume",
     // Shared across all containers built from this template.
     "source=claude-python-uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    // `gh` login survives rebuilds. Use a fine-grained token, see README.
+    "source=claude-gh-config-${devcontainerId},target=/home/vscode/.config/gh,type=volume",
     // Your personal Claude Code skills, agents and commands from the host.
     // `claude-host-export.sh` collects them, they arrive read-only and
     // `claude-host-import.sh` copies them into `~/.claude`. Why not mount
     // `~/.claude` directly -- see the scripts.
-    "source=${localWorkspaceFolder}/.devcontainer/.claude-host,target=/opt/claude-host,type=bind,readonly",
-    // Host ssh-agent for `git push` / `git+ssh` dependencies. Requires
-    // SSH_AUTH_SOCK to be set on the host; remove this entry (and
-    // `SSH_AUTH_SOCK` below) if you don't use an ssh-agent.
-    {
-      "source": "${localEnv:SSH_AUTH_SOCK}",
-      "target": "/ssh-agent",
-      "type": "bind"
-    }
+    "source=${localWorkspaceFolder}/.devcontainer/.claude-host,target=/opt/claude-host,type=bind,readonly"
+    // No host ssh-agent: it would give Claude every key you have. Git talks to
+    // GitHub over HTTPS with a fine-grained `gh` token instead (Dockerfile).
   ],
-  // Lets the container reach the host by name. Network stays bridge, not host:
-  // services listening on the host's localhost are not reachable.
-  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "runArgs": [
+    // Lets the container reach the host by name. Network stays bridge, not
+    // host: services listening on the host's localhost are not reachable.
+    "--add-host=host.docker.internal:host-gateway",
+    // For `init-firewall.sh`. docker-in-docker already grants them; they are
+    // listed so the firewall keeps working if you remove that feature.
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW",
+    // A runaway build, test or fork bomb can't take down the host. Tune to your
+    // machine; on Docker Desktop the VM must have at least this much memory.
+    "--memory=8g",
+    "--cpus=4",
+    "--pids-limit=4096"
+  ],
   "containerEnv": {
     // `~/.claude.json` (OAuth account, project trust) lives outside
     // `~/.claude`; this puts it into the volume as well.
@@ -82,8 +92,7 @@
     "HTTP_PROXY": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
     "http_proxy": "${localEnv:DEVCONTAINER_HTTPS_PROXY}",
     "NO_PROXY": "localhost,127.0.0.1,::1,host.docker.internal",
-    "no_proxy": "localhost,127.0.0.1,::1,host.docker.internal",
-    "SSH_AUTH_SOCK": "/ssh-agent"
+    "no_proxy": "localhost,127.0.0.1,::1,host.docker.internal"
   },
   // Runs on the host before every start. Arrays, not strings, so paths with
   // spaces work.
@@ -95,10 +104,12 @@
     "venv": ["mkdir", "-p", ".venv"]
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
-  // On every start, not once: the skill list and host skills change more often
-  // than the container is rebuilt. Skills from `skills-list.txt` go first, so
-  // your host copies win on a name clash.
-  "postStartCommand": "bash .devcontainer/install-skills.sh; bash .devcontainer/claude-host-import.sh",
+  // On every start, not once: iptables rules don't survive a restart, and the
+  // skill list and host skills change more often than the container is rebuilt.
+  // The firewall goes first; if it fails, the start reports an error instead of
+  // silently running with open network. Skills from `skills-list.txt` go before
+  // host skills, so your host copies win on a name clash.
+  "postStartCommand": "sudo /usr/local/sbin/init-firewall.sh && { bash .devcontainer/install-skills.sh; bash .devcontainer/claude-host-import.sh; }",
   "customizations": {
     "vscode": {
       "extensions": [
