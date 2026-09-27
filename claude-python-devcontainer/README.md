@@ -42,6 +42,38 @@ To skip permission prompts inside the container:
 claude --dangerously-skip-permissions
 ```
 
+### Without VS Code
+
+The [Dev Containers CLI](https://github.com/devcontainers/cli) reads the same
+`devcontainer.json`, including features, mounts, `runArgs` and lifecycle
+commands. Run these from the project root:
+
+```bash
+npm install -g @devcontainers/cli
+
+# Build and start the container: runs `initializeCommand` on the host, then
+# `post-create.sh`, the firewall and the skill import.
+devcontainer up --workspace-folder .
+
+# Open a shell, or start Claude directly.
+devcontainer exec --workspace-folder . bash
+devcontainer exec --workspace-folder . claude --dangerously-skip-permissions
+```
+
+To rebuild after changing `.devcontainer/`, add `--remove-existing-container`
+to `devcontainer up`, and `--build-no-cache` to skip Docker's layer cache. To
+only check that the image builds, run `devcontainer build --workspace-folder .`.
+
+The CLI has no `down` command. Remove the container with Docker; the named
+volumes are kept:
+
+```bash
+docker rm -f $(docker ps -aq --filter label=devcontainer.local_folder="$PWD")
+```
+
+The CLI doesn't forward your host's git credentials or ssh-agent the way VS
+Code does, so it's the stricter way to run the container.
+
 ## Claude Code skills
 
 Skills reach the container in two ways. Both run on every container start.
