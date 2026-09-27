@@ -12,6 +12,11 @@ FROM mcr.microsoft.com/devcontainers/python:3.14-trixie
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 
+# For `init-firewall.sh`.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iptables ipset iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
 # System libraries your project needs at runtime go here, e.g.:
 # RUN apt-get update \
 #     && apt-get install -y --no-install-recommends libmagic1 \
@@ -33,7 +38,24 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin \
 
 # A fresh named volume inherits the owner of the directory from the image.
 # Without this `~/.claude` is mounted as root and Claude Code can't write to it.
-RUN install -d -o vscode -g vscode /home/vscode/.claude /home/vscode/.cache /home/vscode/.cache/uv
+RUN install -d -o vscode -g vscode /home/vscode/.claude /home/vscode/.cache /home/vscode/.cache/uv \
+        /home/vscode/.config /home/vscode/.config/gh
+
+# No SSH keys in the container: GitHub remotes go over HTTPS with the `gh`
+# token, whatever URL the remote was cloned with.
+RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/" \
+    && git config --system credential."https://github.com".helper "!gh auth git-credential"
+
+# Root-only setup `vscode` may run, and nothing else: with full sudo Claude
+# could switch off the firewall and the guard hook. The scripts take no
+# arguments and are root-owned, so `vscode` can't change what they do.
+COPY --chmod=755 init-firewall.sh fix-venv-owner.sh /usr/local/sbin/
+COPY firewall-allowlist.txt /etc/devcontainer/firewall-allowlist.txt
+RUN echo 'vscode ALL=(root) NOPASSWD: /usr/local/sbin/init-firewall.sh, /usr/local/sbin/fix-venv-owner.sh' \
+        > /etc/sudoers.d/vscode \
+    && chmod 0440 /etc/sudoers.d/vscode \
+    && visudo -cf /etc/sudoers.d/vscode
 
 # Single Python -- the system one from the base image: uv doesn't download its
 # own and can't diverge from the one used by hooks. `copy` because the uv cache
@@ -41,5 +63,11 @@ RUN install -d -o vscode -g vscode /home/vscode/.claude /home/vscode/.cache /hom
 ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON_PREFERENCE=only-system \
     UV_LINK_MODE=copy
+
+# Claude Code guardrails, see `claude-guard.py`.
+# Managed settings are root-owned and apply to every project; project or user
+# settings can't override them, and Claude can't edit them without sudo.
+COPY claude-guard.py /etc/claude-code/hooks/claude-guard.py
+COPY managed-settings.json /etc/claude-code/managed-settings.json
 
 USER vscode

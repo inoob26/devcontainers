@@ -7,7 +7,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 # `.venv` is a named volume on top of the bind mount and is created as root.
-sudo chown "$(id -u):$(id -g)" .venv
+sudo /usr/local/sbin/fix-venv-owner.sh
 
 if [[ ! -f pyproject.toml ]]; then
     echo "post-create: no pyproject.toml -- skipping uv sync (run 'uv init' to start)" >&2
